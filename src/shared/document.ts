@@ -4,6 +4,16 @@ export interface Rect {
   width: number;
   height: number;
 }
+export interface ChoiceCondition {
+  kind: "choice" | "panel";
+  id: string;
+}
+export interface Choice {
+  id: string;
+  label: string;
+  targetPanelId: string;
+  condition?: ChoiceCondition;
+}
 export interface Panel {
   id: string;
   rect: Rect;
@@ -11,6 +21,8 @@ export interface Panel {
   speaker: string;
   sound: "rain" | "pulse" | "wind";
   duration: number;
+  choices?: Choice[];
+  continueTo?: string;
 }
 export interface ComicPage {
   id: string;
@@ -41,10 +53,30 @@ export interface ReadingLocation {
   x: number;
   y: number;
 }
+export interface PathEntry {
+  chapterId: string;
+  pageId: string;
+  panelId: string;
+  viaChoiceId?: string;
+}
+export interface RouteRecord {
+  id: string;
+  name: string;
+  entries: PathEntry[];
+  choiceIds: string[];
+  created: number;
+}
+export interface RouteSnapshot {
+  trail: PathEntry[];
+  cursor: number;
+  records: RouteRecord[];
+}
 export interface Bookmark {
   id: string;
   label: string;
   location: ReadingLocation;
+  trail?: PathEntry[];
+  cursor?: number;
   created: number;
 }
 export type ReadingMode = "page" | "panel";

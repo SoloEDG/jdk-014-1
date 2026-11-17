@@ -1,9 +1,18 @@
-import type { ReadingLocation } from "./document";
+import type { PathEntry, ReadingLocation } from "./document";
 export type ReaderCommand =
   | { type: "chapter"; id: string }
   | { type: "move"; delta: number }
   | { type: "panel"; id: string }
-  | { type: "restore"; location: ReadingLocation };
+  | { type: "choose"; id: string }
+  | { type: "cursor"; index: number }
+  | { type: "switchRoute"; id: string }
+  | { type: "dropRoute"; id: string }
+  | {
+      type: "restore";
+      location: ReadingLocation;
+      trail?: PathEntry[];
+      cursor?: number;
+    };
 export interface Notice {
   text: string;
   tone: "success" | "error";

@@ -10,12 +10,15 @@ import {
   Bookmark,
   Cloud,
   PanelLeftClose,
+  GitBranch,
 } from "lucide-vue-next";
 import { LibraryPanel } from "../features/library";
 import { ChapterPanel } from "../features/chapters";
 import { ReaderStage, PanelStrip } from "../features/reader";
 import { AudioPanel } from "../features/audio";
 import { ProgressPanel } from "../features/progress";
+import { RouteEditor, RouteMap, ChoiceBar } from "../features/routes";
+import { mergeTargetIds, visibleChoices } from "../shared/graph";
 import { useWorkspace } from "./workspace";
 const {
   doc,
@@ -23,6 +26,8 @@ const {
   progress: p,
   library: l,
   chapters: c,
+  routes: ro,
+  requestChapterRemove,
   audio: a,
 } = useWorkspace();
 const current = r.current,
@@ -34,6 +39,24 @@ const current = r.current,
   cue = a.cue;
 const chapterIndex = computed(
   () => doc.value.chapters.findIndex((c) => c.id === at.value.chapterId) + 1,
+);
+const choices = computed(() => r.choices.value);
+const pageBranch = computed(() => {
+  if (mode.value !== "page" || !current.value.page) return null;
+  return (
+    current.value.page.panels.find(
+      (p) =>
+        p.id !== at.value.panelId &&
+        visibleChoices(p, r.flags.value).length > 0,
+    ) ?? null
+  );
+});
+const merges = computed(() => mergeTargetIds(doc.value));
+const nextBlocked = computed(
+  () =>
+    mode.value === "panel" &&
+    r.cursor.value >= r.trail.value.length - 1 &&
+    r.nextStep.value.kind === "choose",
 );
 function focus(id: string) {
   r.dispatch({ type: "panel", id });
@@ -83,10 +106,25 @@ function focus(id: string) {
           @select="r.dispatch({ type: 'chapter', id: $event })"
           @rename="c.begin"
           @move="c.move"
-          @remove="c.remove"
+          @remove="requestChapterRemove"
           @draft="c.draft.value = $event"
           @save="c.rename"
-        /><LibraryPanel
+        />
+        <RouteMap
+          :doc="doc"
+          :trail="r.trail.value"
+          :cursor="r.cursor.value"
+          @select="r.dispatch({ type: 'cursor', index: $event })"
+        />
+        <div class="route-edit-entry">
+          <button class="subtle-button" @click="ro.begin">
+            <GitBranch :size="14" /> 编辑分支路线
+          </button>
+          <p v-if="ro.notice.value" class="notice" role="status">
+            {{ ro.notice.value }}
+          </p>
+        </div>
+        <LibraryPanel
           :busy="l.busy.value"
           :message="l.message.value"
           @import="l.importFiles"
@@ -135,9 +173,18 @@ function focus(id: string) {
           :panel="current.panel"
           :location="at"
           :mode="mode"
+          :merges="merges"
+          :next-blocked="nextBlocked"
           @move="r.dispatch({ type: 'move', delta: $event })"
           @pan="r.pan"
           @panel="focus"
+        />
+        <ChoiceBar
+          :doc="doc"
+          :choices="choices"
+          :page-branch="pageBranch"
+          @choose="r.dispatch({ type: 'choose', id: $event })"
+          @focus-panel="focus"
         />
         <div class="page-position">
           <span>{{ current.chapter?.subtitle }}</span>
@@ -146,7 +193,10 @@ function focus(id: string) {
             ><span>/ {{ String(metrics.pageCount).padStart(2, "0") }}</span
             ><small>页</small>
           </div>
-          <span>阅读位置自动保存 <i></i></span>
+          <span
+            >本路线第 {{ metrics.step }} 格 · 前方约 {{ metrics.remaining }} 格
+            <i></i
+          ></span>
         </div>
         <PanelStrip
           v-if="current.page"
@@ -167,16 +217,26 @@ function focus(id: string) {
           @dialogue="a.dialogue.value = !a.dialogue.value"
         /><ProgressPanel
           :bookmarks="bookmarks"
-          :percent="metrics.percent"
+          :metrics="metrics"
+          :records="r.records.value"
           :status="status"
           @add="p.add"
           @remove="p.remove"
-          @restore="r.dispatch({ type: 'restore', location: $event })"
+          @restore="
+            r.dispatch({
+              type: 'restore',
+              location: $event.location,
+              trail: $event.trail,
+              cursor: $event.cursor,
+            })
+          "
+          @switch-route="r.dispatch({ type: 'switchRoute', id: $event })"
+          @drop-route="r.dispatch({ type: 'dropRoute', id: $event })"
         />
         <div class="reading-tip">
           <span>✦ 阅读小贴士</span>
-          <p>试试逐格模式，让画面与声音<br />带你走进故事的深处。</p>
-          <kbd>←</kbd><kbd>→</kbd> <small>切换画面</small><br /><kbd>Space</kbd>
+          <p>在分支点选择调查路线，<br />回头改选也不会丢失读过的故事。</p>
+          <kbd>←</kbd><kbd>→</kbd> <small>前进 / 回退</small><br /><kbd>Space</kbd>
           <small>播放 / 暂停声景</small>
         </div>
       </aside>
@@ -186,5 +246,24 @@ function focus(id: string) {
       ><span>PANEL · 为每一格想象而生</span
       ><span>图片导入 · 本地存储 · 无需联网</span>
     </footer>
+    <RouteEditor
+      :open="ro.open.value"
+      :draft="ro.draft.value"
+      :selected="ro.selected.value"
+      :dirty="ro.dirty.value"
+      :error="ro.error.value"
+      :last-removed="ro.lastRemoved.value"
+      :issues="ro.issues.value"
+      :warnings="ro.warnings.value"
+      @select="ro.select"
+      @add-choice="ro.addChoice"
+      @update-choice="ro.updateChoice"
+      @remove-choice="ro.removeChoice"
+      @set-continue="ro.setContinue"
+      @remove-panel="ro.removePanel"
+      @publish="ro.publish"
+      @discard="ro.discard"
+      @close="ro.close"
+    />
   </div>
 </template>

@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { ChevronLeft, ChevronRight, Maximize2 } from "lucide-vue-next";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Maximize2,
+  GitBranch,
+  GitMerge,
+} from "lucide-vue-next";
 import type {
   ComicPage,
   Panel,
@@ -13,6 +19,8 @@ const props = defineProps<{
   panel: Panel;
   location: ReadingLocation;
   mode: ReadingMode;
+  merges: Set<string>;
+  nextBlocked: boolean;
 }>();
 const emit = defineEmits<{
   move: [delta: number];
@@ -86,13 +94,21 @@ function fullscreen() {
             @dblclick="emit('panel', p.id)"
           >
             <span>{{ String(i + 1).padStart(2, "0") }}</span>
+            <i v-if="p.choices?.length" class="hotspot-badge branch" title="分支点">
+              <GitBranch :size="9" />
+            </i>
+            <i v-else-if="merges.has(p.id)" class="hotspot-badge merge" title="汇合点">
+              <GitMerge :size="9" />
+            </i>
           </button></template
         >
       </div>
     </div>
     <button
       class="nav-arrow next"
+      :class="{ blocked: nextBlocked }"
       aria-label="下一页或分镜"
+      :title="nextBlocked ? '请先选择一条调查路线' : '下一页或分镜'"
       @click="emit('move', 1)"
     >
       <ChevronRight :size="23" />
@@ -101,7 +117,8 @@ function fullscreen() {
       <span
         >{{ mode === "page" ? "整页浏览" : "逐格沉浸" }} <b>·</b>
         {{ page.title }}</span
-      ><span>← → 翻阅 <b>·</b> 双击分镜进入</span>
+      ><span v-if="nextBlocked">分支点 · 请选择调查路线</span
+      ><span v-else>← → 翻阅 <b>·</b> 双击分镜进入</span>
     </div>
   </section>
 </template>
